@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:24-trixie-slim AS base
+FROM node:26-trixie-slim AS base
 WORKDIR /app
 ENV CI=true
 
@@ -24,7 +24,7 @@ COPY src ./src
 RUN npm run build \
  && npm prune --omit=dev
 
-FROM node:24-trixie-slim AS prod
+FROM node:26-trixie-slim AS prod
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
