@@ -42,7 +42,7 @@ export default defineConfig({
     coverage: {
       include: ['src/**'],
       exclude: ['src/server.ts'],
-      reporter: ['text', 'json-summary', 'json'],
+      reporter: ['text', 'lcov'],
       reportOnFailure: true,
       thresholds: { 100: true },
     },
