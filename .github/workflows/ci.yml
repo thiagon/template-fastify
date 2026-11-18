@@ -42,12 +42,13 @@ jobs:
 
       - id: test
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npx vitest run --project unit --coverage
+        run: npx vitest run --project unit --coverage --reporter=default --reporter=junit --outputFile.junit=coverage/junit.xml
 
       - if: ${{ !cancelled() && steps.test.outcome != 'skipped' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: thiagon/cov-comment@19d485ab0a4e9bcfd53f1a7e7650d4a9782d3370 # main
         with:
           lcov-file: coverage/lcov.info
+          junit-file: coverage/junit.xml
 
   integration:
     name: integration
