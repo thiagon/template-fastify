@@ -17,6 +17,43 @@ jobs:
   check:
     name: lint, typecheck and test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - id: install
+        run: npm ci
+
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npx biome ci --reporter=github .
+
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npx tsc --noEmit -p tsconfig.test.json --pretty false
+
+      - id: test
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npx vitest run --project unit --coverage
+
+      - if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
+        run: |
+          jq 'with_entries(select(.key == "total" or any(.value[]; .pct < 100)))' coverage/coverage-summary.json > coverage/coverage-summary.tmp
+          mv coverage/coverage-summary.tmp coverage/coverage-summary.json
+
+      - if: ${{ !cancelled() && steps.test.outcome != 'skipped' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: davelosert/vitest-coverage-report-action@74c2d9210b4fc44c84d8213f61d7ec99837b7aa0 # v2.13.2
+
+  e2e:
+    name: e2e over compose
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -29,8 +66,14 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run lint
+      - run: npx vitest run --project e2e
 
-      - run: npm run typecheck
+  image:
+    name: build image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - run: npm test
+      - run: docker build --target prod .

@@ -9,5 +9,5 @@ export default fp(
 
     registerTodoRoutes(app, service);
   },
-  { name: 'todos', dependencies: ['env', 'sensible', 'error-handler'] },
+  { name: 'todos', dependencies: ['env', 'error-handler'] },
 );

@@ -1,0 +1,7 @@
+apiVersion: 1
+
+providers:
+  - name: fastify-template
+    type: file
+    options:
+      path: /otel-lgtm/fastify-dashboard.json

@@ -1,21 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startTestServer, type TestServer } from '../../../helpers/server.ts';
+import { status } from 'http-status';
+import { describe, expect } from 'vitest';
+import { test } from '../../test.ts';
 
 describe('health over http', () => {
-  let server: TestServer;
+  test('reports the service as live', async ({ baseUrl }) => {
+    const res = await fetch(`${baseUrl}/health/live`);
 
-  beforeAll(async () => {
-    server = await startTestServer();
-  });
-
-  afterAll(async () => {
-    await server.close();
-  });
-
-  it('reports the service as up', async () => {
-    const res = await fetch(`${server.baseUrl}/health`);
-
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(status.OK);
     expect(await res.json()).toMatchObject({ status: 'ok' });
+  });
+
+  test('reports the service as ready', async ({ baseUrl }) => {
+    const res = await fetch(`${baseUrl}/health/ready`);
+
+    expect(res.status).toBe(status.OK);
+    expect(await res.json()).toMatchObject({ status: 'ok', checks: { pressure: 'ok' } });
   });
 });

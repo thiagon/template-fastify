@@ -4,13 +4,16 @@ export default defineConfig({
   test: {
     projects: [
       {
+        extends: true,
         test: {
           name: 'unit',
           include: ['test/unit/**/*.test.ts'],
           environment: 'node',
+          unstubEnvs: true,
         },
       },
       {
+        extends: true,
         test: {
           name: 'integration',
           include: ['test/integration/**/*.test.ts'],
@@ -21,18 +24,25 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         test: {
           name: 'e2e',
           include: ['test/e2e/**/*.test.ts'],
           environment: 'node',
+          globalSetup: ['test/e2e/global-setup.ts'],
           fileParallelism: false,
           testTimeout: 15_000,
           hookTimeout: 15_000,
         },
       },
     ],
+    server: {
+      deps: { inline: ['@fastify/autoload'] },
+    },
     coverage: {
       include: ['src/**'],
+      reporter: ['text', 'json-summary', 'json'],
+      reportOnFailure: true,
     },
   },
 });

@@ -1,0 +1,13 @@
+receivers:
+  prometheus/app:
+    config:
+      scrape_configs:
+        - job_name: fastify-template
+          scrape_interval: 15s
+          static_configs:
+            - targets: ["app:3000"]
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp, prometheus/collector, prometheus/app]
