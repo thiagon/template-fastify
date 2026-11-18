@@ -23,7 +23,7 @@ export default fp(
       '/health/live',
       {
         logLevel: 'warn',
-        config: { disableMetrics: true, otel: false },
+        config: { disableMetrics: true, otel: false, rateLimit: false },
         schema: {
           tags: ['health'],
           response: { [status.OK]: liveResponse },
@@ -41,7 +41,7 @@ export default fp(
       '/health/ready',
       {
         logLevel: 'warn',
-        config: { disableMetrics: true, otel: false },
+        config: { disableMetrics: true, otel: false, rateLimit: false },
         schema: {
           tags: ['health'],
           response: { [status.OK]: readyResponse, [status.SERVICE_UNAVAILABLE]: readyResponse },

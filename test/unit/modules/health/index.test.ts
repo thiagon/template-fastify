@@ -1,5 +1,5 @@
 import { status } from 'http-status';
-import { describe, expect } from 'vitest';
+import { describe, expect, vi } from 'vitest';
 import { test } from '../../test.ts';
 
 describe('health routes', () => {
@@ -44,5 +44,15 @@ describe('health routes', () => {
 
   test('rejects duplicate check names', async ({ app }) => {
     expect(() => app.readiness.add('pressure', () => {})).toThrow(/already registered/);
+  });
+
+  test('is never rate limited', async ({ createApp }) => {
+    vi.stubEnv('RATE_LIMIT_MAX', '1');
+    const app = await createApp();
+
+    for (const url of ['/health/live', '/health/live', '/health/ready', '/health/ready']) {
+      const res = await app.inject({ method: 'GET', url });
+      expect(res.statusCode).toBe(status.OK);
+    }
   });
 });
