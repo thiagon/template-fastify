@@ -9,6 +9,7 @@ export default defineConfig({
           name: 'unit',
           include: ['test/unit/**/*.test.ts'],
           environment: 'node',
+          unstubEnvs: true,
         },
       },
       {
@@ -28,6 +29,7 @@ export default defineConfig({
           name: 'e2e',
           include: ['test/e2e/**/*.test.ts'],
           environment: 'node',
+          globalSetup: ['test/e2e/global-setup.ts'],
           fileParallelism: false,
           testTimeout: 15_000,
           hookTimeout: 15_000,

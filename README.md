@@ -37,15 +37,17 @@ Base template for Fastify APIs: autoloaded plugins and modules, Zod-typed env, O
 │       └── todos/             # reference module — delete it in a real project
 ├── test/                      # each level mirrors the path of the file under test
 │   ├── unit/                  # logic and branches, no I/O
+│   │   ├── test.ts            # fixtures: app, createApp
 │   │   ├── app.test.ts
 │   │   ├── env.test.ts
 │   │   ├── telemetry.test.ts
 │   │   ├── plugins/{error-handler,metrics,rate-limit}.test.ts
 │   │   └── modules/{health/index,todos/{service,schema,routes}}.test.ts
 │   ├── integration/           # real dependencies (db, external apis)
-│   ├── e2e/                   # the app over a real socket
-│   │   └── modules/{todos/routes,health/index}.test.ts
-│   └── helpers/               # app and server builders
+│   └── e2e/                   # the compose stack over real http
+│       ├── test.ts            # fixture: baseUrl
+│       ├── global-setup.ts    # compose up/down
+│       └── modules/{todos/routes,health/index}.test.ts
 ├── observability/             # local LGTM stack config used by compose
 ├── Dockerfile
 └── docker-compose.yaml
@@ -212,7 +214,7 @@ Vitest, split into three projects (`vitest.config.ts`), each one with its own sc
 | ----------- | ------------------------------------------------------------------ | -------------------------- |
 | unit        | every branch: services, schemas, route handlers, the error handler | none — `app.inject()` only |
 | integration | real dependencies: database, queue, external api                   | needs them running         |
-| e2e         | the app over a real socket, happy path plus one error per module   | real http                  |
+| e2e         | the compose stack over http, happy path plus one error per module  | needs `docker compose up`  |
 
 Inside each project the file path mirrors the file under test: `src/modules/todos/service.ts` is
 covered by `test/unit/modules/todos/service.test.ts`.
@@ -223,14 +225,19 @@ create → patch → list → delete lifecycle plus a single 400. `integration` 
 [test/integration/README.md](test/integration/README.md)); it runs with `--passWithNoTests` until a
 module talks to something real.
 
-Helpers: `createTestApp()` boots the app in memory for `inject`, `startTestServer()` binds it to a
-random port and returns a `baseUrl` for `fetch`.
+Fixtures, in the pytest sense: [test/unit/test.ts](test/unit/test.ts) exports a `test` extended with `app`
+(a ready app, closed after the test) and `createApp(extend?)` (a factory for tests that register extra
+routes; every app it made is closed after the test). [test/e2e/test.ts](test/e2e/test.ts) provides
+`baseUrl`, and [test/e2e/global-setup.ts](test/e2e/global-setup.ts) runs `docker compose up -d --build --wait app`
+once before the e2e files and `docker compose down --volumes` after them. Set `SERVICE_URL` to point
+at an app that is already running and skip compose. Each level keeps its own fixtures; nothing is
+shared through a `helpers/` folder until two levels need the same thing.
 
 ```bash
-npm test                  # all three
+npm test                  # unit only
 npm run test:unit
 npm run test:integration
-npm run test:e2e
+npm run test:e2e          # brings the compose stack up and down
 npm run test:watch
 npm run test:coverage    # v8 coverage of src/, report in coverage/
 ```

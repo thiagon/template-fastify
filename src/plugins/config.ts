@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
+import { z } from 'zod';
 import { type Env, envSchema } from '../env.ts';
 
 declare module 'fastify' {
@@ -12,7 +13,7 @@ async function configPlugin(fastify: FastifyInstance) {
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
     fastify.log.error(
-      { fieldErrors: parsed.error.flatten().fieldErrors },
+      { fieldErrors: z.flattenError(parsed.error).fieldErrors },
       'invalid env configuration',
     );
     process.exit(1);

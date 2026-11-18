@@ -1,20 +1,9 @@
-import type { FastifyInstance } from 'fastify';
 import { status } from 'http-status';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createTestApp } from '../../helpers/app.ts';
+import { describe, expect } from 'vitest';
+import { test } from '../test.ts';
 
 describe('metrics', () => {
-  let app: FastifyInstance;
-
-  beforeAll(async () => {
-    app = await createTestApp();
-  });
-
-  afterAll(async () => {
-    await app.close();
-  });
-
-  it('exposes route durations in prometheus format', async () => {
+  test('exposes route durations in prometheus format', async ({ app }) => {
     await app.inject({ method: 'GET', url: '/todos' });
 
     const res = await app.inject({ method: 'GET', url: '/metrics' });
@@ -25,7 +14,7 @@ describe('metrics', () => {
     expect(res.body).not.toMatch(/^http_request_summary_seconds/m);
   });
 
-  it('does not record probes or the scrape itself', async () => {
+  test('does not record probes or the scrape itself', async ({ app }) => {
     await app.inject({ method: 'GET', url: '/health/live' });
 
     const res = await app.inject({ method: 'GET', url: '/metrics' });

@@ -1,11 +1,9 @@
 import { status } from 'http-status';
-import { describe, expect, it } from 'vitest';
-import { createTestApp } from '../../../helpers/app.ts';
+import { describe, expect } from 'vitest';
+import { test } from '../../test.ts';
 
 describe('health routes', () => {
-  it('answers liveness with the service identity', async () => {
-    await using app = await createTestApp();
-
+  test('answers liveness with the service identity', async ({ app }) => {
     const res = await app.inject({ method: 'GET', url: '/health/live' });
 
     expect(res.statusCode).toBe(status.OK);
@@ -16,8 +14,8 @@ describe('health routes', () => {
     });
   });
 
-  it('is ready when every check passes', async () => {
-    await using app = await createTestApp(instance => {
+  test('is ready when every check passes', async ({ createApp }) => {
+    const app = await createApp(instance => {
       instance.register(async scoped => {
         scoped.readiness.add('db', async () => {});
       });
@@ -29,8 +27,8 @@ describe('health routes', () => {
     expect(res.json()).toEqual({ status: 'ok', checks: { pressure: 'ok', db: 'ok' } });
   });
 
-  it('is unavailable when a check fails', async () => {
-    await using app = await createTestApp(instance => {
+  test('is unavailable when a check fails', async ({ createApp }) => {
+    const app = await createApp(instance => {
       instance.register(async scoped => {
         scoped.readiness.add('db', async () => {
           throw new Error('connection refused');
@@ -44,9 +42,7 @@ describe('health routes', () => {
     expect(res.json()).toEqual({ status: 'unavailable', checks: { pressure: 'ok', db: 'fail' } });
   });
 
-  it('rejects duplicate check names', async () => {
-    await using app = await createTestApp();
-
+  test('rejects duplicate check names', async ({ app }) => {
     expect(() => app.readiness.add('pressure', () => {})).toThrow(/already registered/);
   });
 });

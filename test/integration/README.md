@@ -16,5 +16,5 @@ in-memory `Map`, for example:
 // - truncate between tests
 ```
 
-Branch coverage does not belong here: keep it in `test/unit`. Route wiring over a real socket
+Branch coverage does not belong here: keep it in `test/unit`. Route wiring over real http
 belongs in `test/e2e`.
