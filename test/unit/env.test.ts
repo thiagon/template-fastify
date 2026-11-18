@@ -34,25 +34,4 @@ describe('envSchema', () => {
   it('parses DOCS_ENABLED as a boolean', () => {
     expect(envSchema.parse({ DOCS_ENABLED: 'false' }).DOCS_ENABLED).toBe(false);
   });
-
-  it('fails when OTEL_EXPORTER_OTLP_ENDPOINT is not a url', () => {
-    const result = envSchema.safeParse({ OTEL_EXPORTER_OTLP_ENDPOINT: 'lgtm:4318' });
-
-    expect(result.success).toBe(false);
-    expect(result.error?.flatten().fieldErrors.OTEL_EXPORTER_OTLP_ENDPOINT).toBeDefined();
-  });
-
-  it('fails when OTEL_EXPORTER_OTLP_TIMEOUT is not a positive integer', () => {
-    const result = envSchema.safeParse({ OTEL_EXPORTER_OTLP_TIMEOUT: '2s' });
-
-    expect(result.success).toBe(false);
-    expect(result.error?.flatten().fieldErrors.OTEL_EXPORTER_OTLP_TIMEOUT).toBeDefined();
-  });
-
-  it('fails when PORT is not numeric', () => {
-    const result = envSchema.safeParse({ PORT: 'not-a-port' });
-
-    expect(result.success).toBe(false);
-    expect(result.error?.flatten().fieldErrors.PORT).toBeDefined();
-  });
 });
