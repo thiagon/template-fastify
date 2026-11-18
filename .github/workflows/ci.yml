@@ -20,6 +20,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -43,13 +44,10 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npx vitest run --project unit --coverage
 
-      - if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
-        run: |
-          jq 'with_entries(select(.key == "total" or any(.value[]; .pct < 100)))' coverage/coverage-summary.json > coverage/coverage-summary.tmp
-          mv coverage/coverage-summary.tmp coverage/coverage-summary.json
-
       - if: ${{ !cancelled() && steps.test.outcome != 'skipped' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: davelosert/vitest-coverage-report-action@74c2d9210b4fc44c84d8213f61d7ec99837b7aa0 # v2.13.2
+        uses: thiagon/cov-comment@eb2e5403bf6753e023ab138838ad8753d4bcb922 # main
+        with:
+          lcov-file: coverage/lcov.info
 
   integration:
     name: integration
