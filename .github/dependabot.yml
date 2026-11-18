@@ -6,10 +6,8 @@ updates:
     schedule:
       interval: weekly
     groups:
-      prod:
-        dependency-type: production
-      dev:
-        dependency-type: development
+      npm:
+        patterns: ["*"]
     ignore:
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
@@ -18,16 +16,25 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
 
   - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: weekly
+    groups:
+      docker:
+        patterns: ["*"]
 
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    groups:
+      docker:
+        patterns: ["*"]
     ignore:
       - dependency-name: node
         update-types: ["version-update:semver-major"]
