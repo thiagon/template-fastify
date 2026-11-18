@@ -45,7 +45,7 @@ jobs:
         run: npx vitest run --project unit --coverage
 
       - if: ${{ !cancelled() && steps.test.outcome != 'skipped' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: thiagon/cov-comment@eb2e5403bf6753e023ab138838ad8753d4bcb922 # main
+        uses: thiagon/cov-comment@19d485ab0a4e9bcfd53f1a7e7650d4a9782d3370 # main
         with:
           lcov-file: coverage/lcov.info
 
