@@ -21,28 +21,35 @@ export function startTelemetry(): AsyncDisposable {
 
   const logsEnabled = env.OTEL_LOGS_EXPORTER !== 'none';
 
+  const instrumentations = [
+    new FastifyOtelInstrumentation({
+      registerOnInitialization: true,
+      instrumentHooks: false,
+      requestHook: (span, request) => {
+        const route = request.routeOptions.url;
+        span.updateName(route ? `${request.method} ${route}` : request.method);
+      },
+    }),
+    new HttpInstrumentation({ disableIncomingRequestInstrumentation: true }),
+    new UndiciInstrumentation(),
+    new PinoInstrumentation({ disableLogSending: !logsEnabled }),
+  ];
+
   const sdk = new NodeSDK({
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: env.SERVICE_NAME,
       [ATTR_SERVICE_VERSION]: env.SERVICE_VERSION,
     }),
     metricReaders: [],
-    ...(logsEnabled ? {} : { logRecordProcessors: [] }),
-    instrumentations: [
-      new FastifyOtelInstrumentation({
-        registerOnInitialization: true,
-        instrumentHooks: false,
-        requestHook: (span, request) => {
-          const route = request.routeOptions.url;
-          span.updateName(route ? `${request.method} ${route}` : request.method);
-        },
-      }),
-      new HttpInstrumentation({ disableIncomingRequestInstrumentation: true }),
-      new UndiciInstrumentation(),
-      new PinoInstrumentation({ disableLogSending: !logsEnabled }),
-    ],
+    logRecordProcessors: logsEnabled ? undefined : [],
+    instrumentations,
   });
   sdk.start();
 
-  return { [Symbol.asyncDispose]: () => sdk.shutdown().catch(() => {}) };
+  return {
+    [Symbol.asyncDispose]: async () => {
+      await sdk.shutdown().catch(() => {});
+      for (const instrumentation of instrumentations) instrumentation.disable();
+    },
+  };
 }

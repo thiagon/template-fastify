@@ -29,6 +29,9 @@
       "style": {
         "useImportType": "error"
       },
+      "suspicious": {
+        "noDeprecatedImports": "error"
+      },
       "nursery": {
         "noFloatingPromises": "error",
         "noMisusedPromises": "error",

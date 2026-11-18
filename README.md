@@ -41,7 +41,7 @@ Base template for Fastify APIs: autoloaded plugins and modules, Zod-typed env, O
 │   │   ├── app.test.ts
 │   │   ├── env.test.ts
 │   │   ├── telemetry.test.ts
-│   │   ├── plugins/{error-handler,metrics,rate-limit}.test.ts
+│   │   ├── plugins/{close-with-grace,config,error-handler,metrics,rate-limit,swagger,under-pressure}.test.ts
 │   │   └── modules/{health/index,todos/{service,schema,routes}}.test.ts
 │   ├── integration/           # real dependencies (db, external apis)
 │   └── e2e/                   # the compose stack over real http
@@ -74,7 +74,7 @@ Only `src`, `test` and the config files are mounted; `node_modules` comes from t
 
 Compose also starts [grafana/otel-lgtm](https://github.com/grafana/docker-otel-lgtm) (collector, Tempo, Loki, Prometheus and Grafana in one container) and wires the app to it: traces and logs over OTLP, and `/metrics` scraped by the collector ([observability/otelcol.yaml](observability/otelcol.yaml)). Open Grafana at http://localhost:3001 and use the Drilldown apps — Traces, Logs and Metrics — or open the **Fastify service overview** dashboard, provisioned from [observability/grafana-dashboard.json](observability/grafana-dashboard.json) (importable into any Grafana via Dashboards → New → Import), for a single service view: traffic, errors and latency per endpoint, Node runtime, recent and slow traces, logs. Port `4318` is published too, so `npm run dev` on the host can export with `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`.
 
-The `prod` stage in the [Dockerfile](Dockerfile) is what ships; CI builds it on every push and pull request so a broken image fails before deploy (it is not published anywhere yet). Compose never runs it.
+The `prod` stage in the [Dockerfile](Dockerfile) is what ships; CI builds it on every push and pull request so a broken image fails before deploy (it is not published anywhere yet), and scans it with [Grype](https://github.com/anchore/grype), failing on any high or critical vulnerability that already has a fix. Pull requests also run GitHub's dependency review, which blocks new dependencies with known high-severity advisories. Compose never runs it. It starts Node with `--enable-source-maps`, so stack traces point at `src/*.ts` instead of `dist/*.js`.
 
 ## Config (env)
 
@@ -178,7 +178,7 @@ Modules do not import from each other. Anything shared becomes a plugin.
 
 A readiness check is any function registered with `app.readiness.add(name, check)`; it fails by throwing. [under-pressure.ts](src/plugins/under-pressure.ts) registers the `pressure` check, and every plugin that owns a connection should register its own (see the `db` example above). The response lists each check as `ok` or `fail`.
 
-Each probe route opts out of route metrics and tracing with `config: { disableMetrics: true, otel: false }` and only logs at `warn`. Any route can do the same — there is no central list to keep in sync.
+Each probe route opts out of route metrics, tracing and rate limiting with `config: { disableMetrics: true, otel: false, rateLimit: false }` and only logs at `warn` — a probe answering 429 would take the instance out of rotation. Any route can do the same — there is no central list to keep in sync.
 
 ## Observability
 
@@ -219,7 +219,9 @@ Vitest, split into three projects (`vitest.config.ts`), each one with its own sc
 Inside each project the file path mirrors the file under test: `src/modules/todos/service.ts` is
 covered by `test/unit/modules/todos/service.test.ts`.
 
-Branch coverage lives in `unit` and nowhere else. `e2e` proves the wiring, so keep it thin —
+Branch coverage lives in `unit` and nowhere else, and it is enforced: `vitest.config.ts` sets a 100% threshold
+on every metric, so `test:coverage` (and CI) fails when a branch goes untested. `src/server.ts` is excluded —
+it is the entrypoint, covered by `e2e`. `e2e` proves the wiring, so keep it thin —
 [test/e2e/modules/todos/routes.test.ts](test/e2e/modules/todos/routes.test.ts) is a full
 create → patch → list → delete lifecycle plus a single 400. `integration` ships empty on purpose (see
 [test/integration/README.md](test/integration/README.md)); it runs with `--passWithNoTests` until a
