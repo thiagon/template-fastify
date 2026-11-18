@@ -6,7 +6,7 @@ Base template for Fastify APIs: autoloaded plugins and modules, Zod-typed env, O
 
 ## Stack
 
-- Node 26 (LTS) in `.nvmrc`, Docker and CI; `engines` still accepts 24+. Pure ESM, no transpiler in dev — Node strips the types itself
+- Node 26 (LTS) in `.node-version`, Docker and CI; `engines` still accepts 24+. Pure ESM, no transpiler in dev — Node strips the types itself
 - Fastify 5 + `@fastify/autoload`
 - Zod (env + request/response schemas via `fastify-type-provider-zod`)
 - TypeScript strict, `NodeNext`
