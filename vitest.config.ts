@@ -41,8 +41,10 @@ export default defineConfig({
     },
     coverage: {
       include: ['src/**'],
+      exclude: ['src/server.ts'],
       reporter: ['text', 'json-summary', 'json'],
       reportOnFailure: true,
+      thresholds: { 100: true },
     },
   },
 });
