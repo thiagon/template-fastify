@@ -24,12 +24,11 @@ COPY src ./src
 RUN npm run build \
  && npm prune --omit=dev
 
-FROM node:24-trixie-slim AS prod
+FROM gcr.io/distroless/nodejs24-debian13:nonroot AS prod
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 EXPOSE 3000
-USER node
-CMD ["node", "dist/server.js"]
+CMD ["dist/server.js"]
