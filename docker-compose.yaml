@@ -5,16 +5,44 @@ services:
       dockerfile: Dockerfile
       target: dev
     ports:
-      - '3000:3000'
+      - "3000:3000"
     env_file:
       - path: .env
         required: false
     environment:
       HOST: 0.0.0.0
-      PORT: '3000'
+      PORT: "3000"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318
+      OTEL_LOGS_EXPORTER: otlp
+    depends_on:
+      lgtm:
+        condition: service_healthy
     volumes:
       - ./src:/app/src
       - ./test:/app/test
       - ./tsconfig.json:/app/tsconfig.json
       - ./package.json:/app/package.json
       - ./package-lock.json:/app/package-lock.json
+    develop:
+      watch:
+        - action: rebuild
+          path: package-lock.json
+    healthcheck:
+      test: node -e "fetch('http://127.0.0.1:3000/health/ready').then(r => r.ok || process.exit(1))"
+      interval: 10s
+      start_period: 10s
+
+  lgtm:
+    image: grafana/otel-lgtm:0.41.0
+    environment:
+      OTELCOL_EXTRA_ARGS: --config=file:/otel-lgtm/otelcol-app.yaml
+    volumes:
+      - ./observability/otelcol.yaml:/otel-lgtm/otelcol-app.yaml
+      - ./observability/grafana-dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/fastify-template.yaml
+      - ./observability/grafana-dashboard.json:/otel-lgtm/fastify-dashboard.json
+    healthcheck:
+      interval: 5s
+      start_period: 60s
+    ports:
+      - "3001:3000"
+      - "4318:4318"

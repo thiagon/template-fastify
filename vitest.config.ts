@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     projects: [
       {
+        extends: true,
         test: {
           name: 'unit',
           include: ['test/unit/**/*.test.ts'],
@@ -11,6 +12,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         test: {
           name: 'integration',
           include: ['test/integration/**/*.test.ts'],
@@ -21,6 +23,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         test: {
           name: 'e2e',
           include: ['test/e2e/**/*.test.ts'],
@@ -31,8 +34,13 @@ export default defineConfig({
         },
       },
     ],
+    server: {
+      deps: { inline: ['@fastify/autoload'] },
+    },
     coverage: {
       include: ['src/**'],
+      reporter: ['text', 'json-summary', 'json'],
+      reportOnFailure: true,
     },
   },
 });

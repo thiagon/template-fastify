@@ -1,6 +1,8 @@
 # fastify-template
 
-Base template for Fastify APIs: autoloaded plugins and modules, Zod-typed env, Swagger, Docker and tests. Clone it, rename it, start writing modules.
+[![CI](https://github.com/thiagon/template-fastify/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/thiagon/template-fastify/actions/workflows/ci.yml)
+
+Base template for Fastify APIs: autoloaded plugins and modules, Zod-typed env, OpenAPI docs with Scalar, Prometheus metrics, OpenTelemetry traces, health probes, Docker and tests. Clone it, rename it, start writing modules.
 
 ## Stack
 
@@ -15,7 +17,8 @@ Base template for Fastify APIs: autoloaded plugins and modules, Zod-typed env, S
 ```
 .
 ├── src/
-│   ├── server.ts              # buildApp() + listen
+│   ├── server.ts              # telemetry + buildApp() + listen
+│   ├── telemetry.ts           # OpenTelemetry SDK, started by server.ts
 │   ├── app.ts                 # Fastify + autoload of plugins/ and modules/
 │   ├── env.ts                 # Zod schema for the environment
 │   ├── plugins/               # infrastructure, loaded first, always wrapped in fp()
@@ -23,21 +26,27 @@ Base template for Fastify APIs: autoloaded plugins and modules, Zod-typed env, S
 │   │   ├── error-handler.ts   # single error/notFound shape for every route
 │   │   ├── cors.ts
 │   │   ├── helmet.ts
-│   │   ├── sensible.ts
-│   │   ├── swagger.ts         # /docs
+│   │   ├── swagger.ts         # OpenAPI + Scalar at /docs
+│   │   ├── metrics.ts         # Prometheus at /metrics
+│   │   ├── rate-limit.ts
+│   │   ├── readiness.ts       # app.readiness.add(name, check)
+│   │   ├── under-pressure.ts  # event loop sampling → `pressure` readiness check
 │   │   └── close-with-grace.ts
 │   └── modules/               # features, one directory each
-│       ├── health/            # smallest possible module
+│       ├── health/            # /health/live and /health/ready
 │       └── todos/             # reference module — delete it in a real project
 ├── test/                      # each level mirrors the path of the file under test
 │   ├── unit/                  # logic and branches, no I/O
+│   │   ├── app.test.ts
 │   │   ├── env.test.ts
-│   │   ├── plugins/error-handler.test.ts
-│   │   └── modules/todos/{service,schema,routes}.test.ts
+│   │   ├── telemetry.test.ts
+│   │   ├── plugins/{error-handler,metrics,rate-limit}.test.ts
+│   │   └── modules/{health/index,todos/{service,schema,routes}}.test.ts
 │   ├── integration/           # real dependencies (db, external apis)
 │   ├── e2e/                   # the app over a real socket
 │   │   └── modules/{todos/routes,health/index}.test.ts
 │   └── helpers/               # app and server builders
+├── observability/             # local LGTM stack config used by compose
 ├── Dockerfile
 └── docker-compose.yaml
 ```
@@ -50,7 +59,7 @@ npm install
 npm run dev          # http://localhost:3000  •  docs at /docs
 ```
 
-Scripts: `dev`, `build`, `start`, `test`, `test:unit`, `test:integration`, `test:e2e`, `test:watch`,
+Scripts: `dev`, `build`, `start`, `test`, `test:unit`, `test:integration`, `test:e2e`, `test:watch`, `test:coverage`,
 `typecheck`, `lint`, `lint:fix`, `format`.
 
 Docker, for local development only — hot reload through a bind mount:
@@ -59,7 +68,11 @@ Docker, for local development only — hot reload through a bind mount:
 docker compose up
 ```
 
-The `prod` stage in the [Dockerfile](Dockerfile) is what CI builds and ships; compose never runs it.
+Only `src`, `test` and the config files are mounted; `node_modules` comes from the image. Run `make watch` (`docker compose watch`) and the image is rebuilt on its own whenever `package-lock.json` changes; with plain `up`, rebuild it with `docker compose up --build` after adding or removing a dependency, otherwise the reloaded app fails with `ERR_MODULE_NOT_FOUND`.
+
+Compose also starts [grafana/otel-lgtm](https://github.com/grafana/docker-otel-lgtm) (collector, Tempo, Loki, Prometheus and Grafana in one container) and wires the app to it: traces and logs over OTLP, and `/metrics` scraped by the collector ([observability/otelcol.yaml](observability/otelcol.yaml)). Open Grafana at http://localhost:3001 and use the Drilldown apps — Traces, Logs and Metrics — or open the **Fastify service overview** dashboard, provisioned from [observability/grafana-dashboard.json](observability/grafana-dashboard.json) (importable into any Grafana via Dashboards → New → Import), for a single service view: traffic, errors and latency per endpoint, Node runtime, recent and slow traces, logs. Port `4318` is published too, so `npm run dev` on the host can export with `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`.
+
+The `prod` stage in the [Dockerfile](Dockerfile) is what ships; CI builds it on every push and pull request so a broken image fails before deploy (it is not published anywhere yet). Compose never runs it.
 
 ## Config (env)
 
@@ -75,6 +88,21 @@ export const envSchema = z.object({
 ```
 
 From then on it is `app.env.DATABASE_URL`, typed, anywhere. Document the variable in `.env.example`.
+
+Built-in variables beyond the basics:
+
+| variable                      | default    | effect                                                                 |
+| ----------------------------- | ---------- | ---------------------------------------------------------------------- |
+| `TRUST_PROXY`                 | `false`    | trust `x-forwarded-*` for `req.ip`; turn on behind a load balancer     |
+| `CORS_ORIGIN`                 | `*`        | `*` or a comma-separated list of allowed origins                       |
+| `RATE_LIMIT_MAX`              | `100`      | requests per window, per client ip                                     |
+| `RATE_LIMIT_WINDOW`           | `1 minute` | window length                                                          |
+| `DOCS_ENABLED`                | `true`     | serve `/docs`; turn off where the API is public                        |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | —          | OTLP collector url; traces are only exported when it is set            |
+| `OTEL_EXPORTER_OTLP_TIMEOUT`  | `10000`    | ms per export, retries included; set ~`2000` in production (see below) |
+| `OTEL_LOGS_EXPORTER`          | `none`     | `otlp` also ships logs over OTLP                                       |
+
+`LOG_LEVEL` and `TRUST_PROXY` are read from `process.env` when the Fastify instance is created, before the config plugin runs; they are still declared in the schema so they are validated and documented in one place.
 
 ### `.env` is local-only
 
@@ -106,9 +134,10 @@ async function dbPlugin(fastify: FastifyInstance) {
   const db = await connect(fastify.env.DATABASE_URL);
   fastify.decorate('db', db);
   fastify.addHook('onClose', () => db.close());
+  fastify.readiness.add('db', () => db.ping());
 }
 
-export default fp(dbPlugin, { name: 'db', dependencies: ['env'] });
+export default fp(dbPlugin, { name: 'db', dependencies: ['env', 'readiness'] });
 ```
 
 Two details make this work: `fastify-plugin` (`fp`) opts out of encapsulation, so the decorator is visible to the whole app; and `dependencies` pins the load order (the env plugin is named `env`).
@@ -131,12 +160,33 @@ The split is the point:
 
 - **schema.ts** is the single source of truth. Request validation, response serialization and `/docs` all come from it, and the TypeScript types are inferred from the schemas — never write both by hand. A field missing from a response schema is silently dropped from the payload.
 - **service.ts** returns `null`/`boolean` instead of throwing HTTP errors. It stays testable on its own and swapping the in-memory `Map` for Postgres does not change a single signature.
-- **routes.ts** is thin: validate (via schema), call the service, translate to HTTP. `app.httpErrors.notFound()` (from `@fastify/sensible`) is thrown here and the error-handler plugin formats it.
+- **routes.ts** is thin: validate (via schema), call the service, translate to HTTP. `createError.NotFound()` (from `http-errors`) is thrown here and the error-handler plugin formats it.
 - **index.ts** builds the module's dependencies from the already-validated `app.env` and declares `dependencies` so the plugins it uses are loaded first.
 
 A one-file module is fine too — see [src/modules/health/index.ts](src/modules/health/index.ts). Grow into the four-file shape when the module earns it.
 
 Modules do not import from each other. Anything shared becomes a plugin.
+
+## Health
+
+| route           | answers                                                                     | use it as       |
+| --------------- | --------------------------------------------------------------------------- | --------------- |
+| `/health/live`  | always 200 while the process runs                                           | liveness probe  |
+| `/health/ready` | 200, or 503 when any readiness check fails, under pressure or shutting down | readiness probe |
+
+A readiness check is any function registered with `app.readiness.add(name, check)`; it fails by throwing. [under-pressure.ts](src/plugins/under-pressure.ts) registers the `pressure` check, and every plugin that owns a connection should register its own (see the `db` example above). The response lists each check as `ok` or `fail`.
+
+Each probe route opts out of route metrics and tracing with `config: { disableMetrics: true, otel: false }` and only logs at `warn`. Any route can do the same — there is no central list to keep in sync.
+
+## Observability
+
+- **Request id**: every response carries `x-request-id`. An incoming `x-request-id` is kept, so ids flow across services; otherwise a uuid is generated. It is the `reqId` on every log line.
+- **Logs**: pino JSON on stdout, one `request completed` line per request (method, url, status, response time), emitted on response so it carries the trace id. Fastify's own `incoming request` line is disabled: it fires before the span exists. `authorization` and `cookie` are redacted.
+- **Metrics**: [metrics.ts](src/plugins/metrics.ts) exposes Prometheus metrics at `/metrics`: default Node metrics plus an `http_request_duration_seconds` histogram labelled by route template, method and status. The endpoint is unauthenticated and hidden from `/docs`; keep it off the public ingress.
+- **Traces**: [telemetry.ts](src/telemetry.ts) starts the OpenTelemetry SDK only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. It instruments Fastify (request and handler spans, no per-hook spans, `traceparent` honoured) and outgoing `http`/`fetch`, and adds `trace_id`/`span_id` to log lines. Everything else is the standard `OTEL_*` configuration — set `OTEL_TRACES_SAMPLER=parentbased_traceidratio` and `OTEL_TRACES_SAMPLER_ARG` to control volume.
+- **OTel logs** are optional: set `OTEL_LOGS_EXPORTER=otlp` to also ship pino logs over OTLP. OTel metrics stay off; Prometheus covers them.
+
+`server.ts` starts the SDK before `buildApp()`, and `app.ts` never imports it, so tests never load it: Fastify, pino and `fetch` are instrumented through diagnostics channels at instance creation, and plugins are only imported by autoload during `ready()`. Keep drivers out of `app.ts` imports so they load after the SDK. The SDK is registered as an `onClose` hook, so pending spans are flushed when [close-with-grace.ts](src/plugins/close-with-grace.ts) closes the app. With the collector down, that flush keeps retrying until `OTEL_EXPORTER_OTLP_TIMEOUT`: the 10s default matches close-with-grace's own 10s delay, so a slow `app.close()` gets the process killed with the spans lost anyway — `2000` caps the flush at about a second.
 
 ## Errors
 
@@ -145,20 +195,24 @@ Modules do not import from each other. Anything shared becomes a plugin.
 | case                        | status | body                                                                |
 | --------------------------- | ------ | ------------------------------------------------------------------- |
 | Zod validation failure      | 400    | `{ error: 'ValidationError', message, details: [{path, message}] }` |
-| `app.httpErrors.*`          | 4xx    | `{ error, message }`                                                |
+| `createError.*`             | any    | `{ error, message }` (5xx ones are logged)                          |
+| unknown route               | 404    | `{ error: 'NotFoundError', message }`                               |
+| rate limit exceeded         | 429    | `{ error: 'TooManyRequestsError', message }` + `retry-after`        |
 | unknown / response mismatch | 500    | `{ error: 'InternalServerError', message }`, logged with the stack  |
 
-Remember to declare the error shape in the route's `response` map (`400: errorResponse`), otherwise serialization strips the fields.
+Remember to declare the error shape in the route's `response` map (`[status.BAD_REQUEST]: errorResponse`), otherwise serialization strips the fields.
+
+Status codes are never written as bare numbers: use the named constants from [`http-status`](https://github.com/adaltas/node-http-status) (`status.CREATED`, `status.NOT_FOUND`) for codes and response maps, and throw `createError.*` from [`http-errors`](https://github.com/jshttp/http-errors) to fail a request — it works from any layer, no Fastify instance needed.
 
 ## Tests
 
 Vitest, split into three projects (`vitest.config.ts`), each one with its own script:
 
-| Project     | Scope                                                                | I/O                        |
-| ----------- | -------------------------------------------------------------------- | -------------------------- |
-| unit        | every branch: services, schemas, route handlers, the error handler    | none — `app.inject()` only |
-| integration | real dependencies: database, queue, external api                      | needs them running         |
-| e2e         | the app over a real socket, happy path plus one error per module      | real http                  |
+| Project     | Scope                                                              | I/O                        |
+| ----------- | ------------------------------------------------------------------ | -------------------------- |
+| unit        | every branch: services, schemas, route handlers, the error handler | none — `app.inject()` only |
+| integration | real dependencies: database, queue, external api                   | needs them running         |
+| e2e         | the app over a real socket, happy path plus one error per module   | real http                  |
 
 Inside each project the file path mirrors the file under test: `src/modules/todos/service.ts` is
 covered by `test/unit/modules/todos/service.test.ts`.
@@ -178,6 +232,7 @@ npm run test:unit
 npm run test:integration
 npm run test:e2e
 npm run test:watch
+npm run test:coverage    # v8 coverage of src/, report in coverage/
 ```
 
 `npm run typecheck` runs `tsc` over `src` + `test`; `build` compiles `src` only.

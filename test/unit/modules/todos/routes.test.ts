@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { status } from 'http-status';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Todo } from '../../../../src/modules/todos/schema.ts';
 import { createTestApp } from '../../../helpers/app.ts';
@@ -29,14 +30,14 @@ describe('todos routes', () => {
         payload: { title: 'write the real module' },
       });
 
-      expect(res.statusCode).toBe(201);
+      expect(res.statusCode).toBe(status.CREATED);
       expect(res.json()).toMatchObject({ title: 'write the real module', done: false });
     });
 
     it('rejects an invalid body with 400 and field details', async () => {
       const res = await app.inject({ method: 'POST', url: '/todos', payload: { title: '' } });
 
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(status.BAD_REQUEST);
       expect(res.json()).toMatchObject({
         error: 'ValidationError',
         details: [{ path: 'title' }],
@@ -51,7 +52,7 @@ describe('todos routes', () => {
 
       const res = await app.inject({ method: 'GET', url: '/todos?done=true&limit=1' });
 
-      expect(res.statusCode).toBe(200);
+      expect(res.statusCode).toBe(status.OK);
       const body = res.json<{ items: Todo[] }>();
       expect(body.items).toHaveLength(1);
       expect(body.items[0]?.id).toBe(created.id);
@@ -60,7 +61,7 @@ describe('todos routes', () => {
     it('rejects an out-of-range limit with 400', async () => {
       const res = await app.inject({ method: 'GET', url: '/todos?limit=999' });
 
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(status.BAD_REQUEST);
       expect(res.json()).toMatchObject({ error: 'ValidationError' });
     });
   });
@@ -71,21 +72,21 @@ describe('todos routes', () => {
 
       const res = await app.inject({ method: 'GET', url: `/todos/${created.id}` });
 
-      expect(res.statusCode).toBe(200);
+      expect(res.statusCode).toBe(status.OK);
       expect(res.json()).toEqual(created);
     });
 
     it('returns 404 for an unknown id', async () => {
       const res = await app.inject({ method: 'GET', url: `/todos/${UNKNOWN_ID}` });
 
-      expect(res.statusCode).toBe(404);
+      expect(res.statusCode).toBe(status.NOT_FOUND);
       expect(res.json()).toMatchObject({ error: 'NotFoundError' });
     });
 
     it('returns 400 for a malformed id', async () => {
       const res = await app.inject({ method: 'GET', url: '/todos/not-a-uuid' });
 
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(status.BAD_REQUEST);
       expect(res.json()).toMatchObject({ error: 'ValidationError', details: [{ path: 'id' }] });
     });
   });
@@ -98,7 +99,7 @@ describe('todos routes', () => {
         payload: { done: true },
       });
 
-      expect(res.statusCode).toBe(404);
+      expect(res.statusCode).toBe(status.NOT_FOUND);
     });
   });
 
@@ -107,16 +108,16 @@ describe('todos routes', () => {
       const created = await createTodo('delete me');
 
       const del = await app.inject({ method: 'DELETE', url: `/todos/${created.id}` });
-      expect(del.statusCode).toBe(204);
+      expect(del.statusCode).toBe(status.NO_CONTENT);
 
       const get = await app.inject({ method: 'GET', url: `/todos/${created.id}` });
-      expect(get.statusCode).toBe(404);
+      expect(get.statusCode).toBe(status.NOT_FOUND);
     });
 
     it('returns 404 for an unknown id', async () => {
       const res = await app.inject({ method: 'DELETE', url: `/todos/${UNKNOWN_ID}` });
 
-      expect(res.statusCode).toBe(404);
+      expect(res.statusCode).toBe(status.NOT_FOUND);
     });
   });
 });

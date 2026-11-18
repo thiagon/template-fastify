@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import createError from 'http-errors';
+import { status } from 'http-status';
 import { z } from 'zod';
 import {
   createTodoBody,
@@ -22,7 +24,7 @@ export function registerTodoRoutes(app: FastifyInstance, service: TodoService): 
         tags: ['todos'],
         summary: 'List todos',
         querystring: listTodosQuery,
-        response: { 200: todoList },
+        response: { [status.OK]: todoList },
       },
     },
     async req => service.list(req.query),
@@ -34,12 +36,12 @@ export function registerTodoRoutes(app: FastifyInstance, service: TodoService): 
       schema: {
         tags: ['todos'],
         params: todoParams,
-        response: { 200: todo, 404: errorResponse },
+        response: { [status.OK]: todo, [status.NOT_FOUND]: errorResponse },
       },
     },
     async req => {
       const found = await service.get(req.params.id);
-      if (!found) throw app.httpErrors.notFound(`todo ${req.params.id} not found`);
+      if (!found) throw createError.NotFound(`todo ${req.params.id} not found`);
       return found;
     },
   );
@@ -50,12 +52,12 @@ export function registerTodoRoutes(app: FastifyInstance, service: TodoService): 
       schema: {
         tags: ['todos'],
         body: createTodoBody,
-        response: { 201: todo, 400: errorResponse },
+        response: { [status.CREATED]: todo, [status.BAD_REQUEST]: errorResponse },
       },
     },
     async (req, reply) => {
       const created = await service.create(req.body);
-      return reply.code(201).send(created);
+      return reply.code(status.CREATED).send(created);
     },
   );
 
@@ -66,12 +68,12 @@ export function registerTodoRoutes(app: FastifyInstance, service: TodoService): 
         tags: ['todos'],
         params: todoParams,
         body: updateTodoBody,
-        response: { 200: todo, 404: errorResponse },
+        response: { [status.OK]: todo, [status.NOT_FOUND]: errorResponse },
       },
     },
     async req => {
       const updated = await service.update(req.params.id, req.body);
-      if (!updated) throw app.httpErrors.notFound(`todo ${req.params.id} not found`);
+      if (!updated) throw createError.NotFound(`todo ${req.params.id} not found`);
       return updated;
     },
   );
@@ -82,13 +84,13 @@ export function registerTodoRoutes(app: FastifyInstance, service: TodoService): 
       schema: {
         tags: ['todos'],
         params: todoParams,
-        response: { 204: z.null(), 404: errorResponse },
+        response: { [status.NO_CONTENT]: z.null(), [status.NOT_FOUND]: errorResponse },
       },
     },
     async (req, reply) => {
       const removed = await service.remove(req.params.id);
-      if (!removed) throw app.httpErrors.notFound(`todo ${req.params.id} not found`);
-      return reply.code(204).send(null);
+      if (!removed) throw createError.NotFound(`todo ${req.params.id} not found`);
+      return reply.code(status.NO_CONTENT).send(null);
     },
   );
 }

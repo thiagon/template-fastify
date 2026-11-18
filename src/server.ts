@@ -1,6 +1,10 @@
 import { buildApp } from './app.ts';
+import { startTelemetry } from './telemetry.ts';
 
+const telemetry = startTelemetry();
 const app = buildApp();
+
+app.addHook('onClose', telemetry);
 
 try {
   await app.ready();
